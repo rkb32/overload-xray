@@ -1,0 +1,8 @@
+.venv
+spans
+__pycache__
+.pytest_cache
+tests
+.git
+.claude
+docs

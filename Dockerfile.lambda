@@ -1,0 +1,11 @@
+# The public product as an AWS Lambda container image. Only what the web app needs: no OpenTelemetry, no MCP, no tests.
+FROM public.ecr.aws/lambda/python:3.13
+
+COPY requirements-web.txt ${LAMBDA_TASK_ROOT}/
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements-web.txt
+
+COPY xray ${LAMBDA_TASK_ROOT}/xray
+COPY results ${LAMBDA_TASK_ROOT}/results
+
+# Lambda mounts everything except /tmp read-only; the app writes nothing, so this costs it nothing.
+CMD ["xray.lambda_handler.handler"]

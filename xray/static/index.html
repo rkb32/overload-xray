@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#08090a">
+<title>overload-xray</title>
+<meta name="description" content="Drop in your OpenTelemetry traces and see how much of your backend's work was wasted on callers that had already given up, and which fix is missing.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="overload-xray: is your backend doing work nobody is waiting for?">
+<meta property="og:description" content="Drop in OpenTelemetry traces and see the work wasted on retries and on callers that had already given up. No install, no account, nothing stored.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230e0f11'/%3E%3Cg%3E%3Crect x='3' y='5' width='6' height='3' rx='1' fill='%23f2f3f4'/%3E%3Crect x='9' y='5' width='6' height='3' rx='1' fill='%23ff6b57'/%3E%3Crect x='6.5' y='10.5' width='6' height='3' rx='1' fill='%23f2f3f4'/%3E%3Crect x='12.5' y='10.5' width='6' height='3' rx='1' fill='%23ff6b57'/%3E%3Crect x='10' y='16' width='6' height='3' rx='1' fill='%23f2f3f4'/%3E%3Crect x='16' y='16' width='6' height='3' rx='1' fill='%23ff6b57'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#try">Skip to the tool</a>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="overload-xray, home">
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+        <rect class="a" x="3" y="5" width="6" height="3" rx="1"/><rect class="b" x="9" y="5" width="6" height="3" rx="1"/>
+        <rect class="a" x="6.5" y="10.5" width="6" height="3" rx="1"/><rect class="b" x="12.5" y="10.5" width="6" height="3" rx="1"/>
+        <rect class="a" x="10" y="16" width="6" height="3" rx="1"/><rect class="b" x="16" y="16" width="6" height="3" rx="1"/>
+      </svg>
+      <span>overload-xray</span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#evidence">Results</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#export">Export traces</a>
+    </nav>
+    <a class="btn btn-solid" href="#try">Try it</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">// zombie-work x-ray for OpenTelemetry traces</p>
+      <h1>Is your backend doing work nobody is waiting for?</h1>
+      <p class="lede">Drop in OpenTelemetry traces. See how much work was wasted on retries and on callers that had already given up, and which fix is missing.</p>
+
+      <div class="try" id="try">
+        <label class="drop" id="drop" for="file">
+          <input id="file" type="file" multiple accept=".json,.jsonl,.ndjson,.txt,application/json">
+          <span class="drop-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          </span>
+          <strong>Drop trace files here</strong>
+          <span>or click to choose</span>
+          <span class="hint">OTLP/JSON or OpenTelemetry SDK span JSON<span id="limit-hint"></span></span>
+        </label>
+
+        <div class="try-row">
+          <span class="mono-label">No traces handy?</span>
+          <button type="button" class="pill" data-sample="retry-storm">Try a retry storm</button>
+          <button type="button" class="pill" data-sample="after-fix">Try it after cancelling at the deadline</button>
+          <button type="button" class="pill" data-sample="layered-retries">Try retries stacked in two layers</button>
+        </div>
+
+        <div class="cmd" role="group" aria-label="Analyze from the command line">
+          <span class="mono-label">or curl</span>
+          <code id="curl-cmd">curl --data-binary @traces.json &lt;this site&gt;/api/analyze</code>
+          <button type="button" class="btn btn-small" id="copy-curl">Copy</button>
+        </div>
+      </div>
+
+      <p id="status" role="status" aria-live="polite"></p>
+      <ul class="facts">
+        <li>No install</li>
+        <li>No account</li>
+        <li>Analyzed in memory, never stored or logged</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <section id="report" hidden aria-labelledby="report-title"></section>
+  </div>
+
+  <section class="band" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <p class="eyebrow">// how it works</p>
+      <h2 id="how-title">It counts the work nobody used.</h2>
+      <p class="lede">xray reads the spans of each trace, matches every call to the work it caused downstream, and checks who was still waiting for the answer.</p>
+
+      <div class="steps">
+        <article>
+          <span class="n">01 · MEASURE</span>
+          <h3>Amplification and goodput</h3>
+          <p>How many calls one user request causes, and how much of a callee's running time the caller actually used.</p>
+        </article>
+        <article>
+          <span class="n">02 · DETECT</span>
+          <h3>Zombie work</h3>
+          <p>Work that kept running after its caller gave up, and for how long, all the way down the chain.</p>
+        </article>
+        <article>
+          <span class="n">03 · FIX</span>
+          <h3>The missing guard</h3>
+          <p>Every finding names its fix: a retry budget, backoff, or sending the caller's remaining time downstream.</p>
+        </article>
+      </div>
+
+      <figure class="fig">
+        <div class="fig-top">
+          <span class="mono-label">The bundled retry-storm sample, drawn to scale</span>
+          <span class="key" aria-hidden="true">
+            <span><i class="sw wait"></i>caller waiting</span>
+            <span><i class="sw zombie"></i>caller already gone</span>
+          </span>
+        </div>
+        <div class="chart" role="img" aria-label="Timeline of the bundled retry-storm sample. Service A calls service B three times and gives up after about one second each time. Each of service B's three jobs runs for three seconds, so about two seconds of every job happen after the caller left: six seconds of work nobody used.">
+          <div class="labels" aria-hidden="true">
+            <span>user request</span><span>attempt 1</span><span>attempt 2</span><span>attempt 3</span>
+          </div>
+          <div class="plot" aria-hidden="true">
+            <div class="axis">
+              <span style="left:0%">0s</span><span style="left:19.2%">1s</span><span style="left:38.5%">2s</span>
+              <span style="left:57.7%">3s</span><span style="left:76.9%">4s</span><span style="left:96.2%">5s</span>
+            </div>
+            <div class="rows">
+              <b class="lead" style="left:20.4%;top:59px"></b>
+              <b class="lead long" style="left:79%;top:129px"></b>
+              <div class="row"><i class="seg user" style="--from:0%;--len:59.6%"></i></div>
+              <div class="row"><i class="seg wait" style="--from:0.6%;--len:19.8%"></i><i class="seg zombie" style="--from:20.4%;--len:38%"></i></div>
+              <div class="row"><i class="seg wait" style="--from:20.6%;--len:19.4%"></i><i class="seg zombie" style="--from:40%;--len:38.4%"></i></div>
+              <div class="row"><i class="seg wait" style="--from:40.4%;--len:19.2%"></i><i class="seg zombie" style="--from:59.6%;--len:38.6%"></i></div>
+            </div>
+            <div class="tags">
+              <span class="tag" style="left:20.4%">caller gives up after 1.0 s</span>
+              <span class="tag tag-end" style="left:79%">service-b is still working 2.0 s after the caller left</span>
+            </div>
+          </div>
+        </div>
+        <figcaption>Three jobs of 3.0 s each: 9.0 s of work, 6.0 s of it after the caller had left, none of it used.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="band" id="evidence" hidden aria-labelledby="evidence-title">
+    <div class="wrap">
+      <p class="eyebrow">// results</p>
+      <h2 id="evidence-title">Does the fix work? A load test.</h2>
+      <p class="lede">The same system under rising load, three ways: no deadline sent, cancel at the deadline, and cancel plus refuse jobs that cannot finish in time.</p>
+      <div class="tiles" id="proof"></div>
+      <div class="panel pad">
+        <div class="panel-top">
+          <span class="mono-label">Chart</span>
+          <select id="metric" aria-label="chart metric">
+            <option value="success_share">share of requests that succeeded</option>
+            <option value="ok_per_s">successes per second</option>
+          </select>
+        </div>
+        <div id="chart" role="img" aria-label="Load test results for three versions of the same system"></div>
+        <div class="legend" id="legend"></div>
+        <p class="note" id="chart-note"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="privacy" aria-labelledby="privacy-title">
+    <div class="wrap">
+      <p class="eyebrow">// private by design</p>
+      <h2 id="privacy-title">Your traces are looked at, not kept.</h2>
+      <div class="steps">
+        <article>
+          <span class="n">IN MEMORY</span>
+          <h3>Parsed, analyzed, dropped</h3>
+          <p>Nothing you upload is written anywhere. There is no account to create and nothing to sign in to.</p>
+        </article>
+        <article>
+          <span class="n">NOT LOGGED</span>
+          <h3>Errors never repeat your data</h3>
+          <p>Messages name the file, the line and the kind of problem, never what was inside the file.</p>
+        </article>
+        <article>
+          <span class="n">BOUNDED</span>
+          <h3>Hard limits</h3>
+          <p>The server enforces <span id="limit-footer">a few files per request</span>.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="export" aria-labelledby="export-title">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">// bring your own traces</p>
+        <h2 id="export-title">Export them with the Collector.</h2>
+        <p class="lede">Every service needs OpenTelemetry tracing with context propagation, so a call from one service and the work it causes in the next end up in the same trace. Then write the traces to a file with the OpenTelemetry Collector's <code>file</code> exporter.</p>
+        <p class="lede">Supported: OTLP/JSON (one export request per line, or one document) and the OpenTelemetry Python SDK's span JSON. Not supported yet: Jaeger JSON. Optional: if a service queues requests before running them, set the span attribute <code>app.queue_wait_ms</code> on its server span, so waiting is not counted as work.</p>
+      </div>
+      <pre><code>exporters:
+  file:
+    path: /data/otlp-traces.json
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [file]</code></pre>
+    </div>
+  </section>
+
+  <section id="runs-section" class="band" hidden aria-labelledby="runs-title">
+    <div class="wrap">
+      <p class="eyebrow">// saved runs</p>
+      <h2 id="runs-title">Runs saved by the CLI</h2>
+      <div class="panel" id="runs"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span class="brand-sm">overload-xray</span>
+    <p>Measures the work your services do that nobody is waiting for. Measured limits and design notes are in the project's docs.</p>
+  </div>
+</footer>
+</body>
+</html>

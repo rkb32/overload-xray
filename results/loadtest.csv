@@ -1,0 +1,6 @@
+offered_per_s,baseline_ok_per_s,baseline_success_share,fixed_ok_per_s,fixed_success_share,shed_ok_per_s,shed_success_share
+2,1.75,1.0,1.75,1.0,1.75,1.0
+5,4.125,1.0,4.125,1.0,4.125,1.0
+8,2.625,0.35,2.625,0.383,6.5,0.967
+12,1.125,0.087,0.875,0.107,7.125,0.65
+20,1.375,0.064,1.125,0.094,7.0,0.667

@@ -1,0 +1,70 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: xray  # local development only
+      POSTGRES_DB: xray
+    ports:
+      - "127.0.0.1:15432:5432"  # this machine only (the dev password is public); 15432 never collides with a Postgres you run
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d xray"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  web:
+    # The public product: upload traces, get a report. It keeps nothing, so the container is locked down to prove it.
+    build: .
+    command: uvicorn xray.api:app --host 0.0.0.0 --port 8080 --log-level warning
+    ports:
+      - "127.0.0.1:18080:8080"  # this machine only; put a proxy in front of it to publish it
+    read_only: true  # the app writes no files: if it ever tried, it would crash instead of quietly storing a trace
+    tmpfs:
+      - /tmp  # in memory only
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      XRAY_ANALYSES_PER_MINUTE: ${XRAY_ANALYSES_PER_MINUTE:-20}
+      # set XRAY_TRUST_PROXY=1 only when a proxy you control sits in front and sets X-Forwarded-For
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    user: "0:0"  # the file exporter must be able to write into the bind-mounted folder
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./deploy/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+      - ./spans/${SPANS_SUBDIR:-docker}:/spans
+
+  service-b:
+    build: .
+    command: uvicorn demo.service_b:app --host 0.0.0.0 --port 8001 --log-level warning
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4318
+      OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: openapi.json,inflight
+      B_WORK_SECONDS: ${B_WORK_SECONDS:-3}
+      B_CONCURRENCY: ${B_CONCURRENCY:-1000}
+      SHED_DOOMED: ${SHED_DOOMED:-0}
+    depends_on: [collector]
+
+  service-a:
+    build: .
+    command: uvicorn demo.service_a:app --host 0.0.0.0 --port 8000 --log-level warning
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4318
+      OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: openapi.json
+      B_URL: http://service-b:8001
+      DEADLINE_PROPAGATION: ${DEADLINE_PROPAGATION:-0}
+    ports:
+      - "127.0.0.1:18000:8000"  # this machine only; host port 18000 never collides with the local demo on 8000
+    depends_on: [service-b]
+
+volumes:
+  pgdata:
