@@ -1,5 +1,5 @@
 # The public product as an AWS Lambda container image. Only what the web app needs: no OpenTelemetry, no MCP, no tests.
-FROM public.ecr.aws/lambda/python:3.13
+FROM public.ecr.aws/lambda/python:3.14
 
 COPY requirements-web.txt ${LAMBDA_TASK_ROOT}/
 RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements-web.txt
