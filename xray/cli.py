@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> None:
     save.add_argument("--name", required=True, help="how the run is listed in the dashboard")
     save.add_argument("--jev", action="store_true", help=JEV_HELP)
 
-    serve = sub.add_parser("serve", help="start the dashboard and read-only API (needs DATABASE_URL)")
+    serve = sub.add_parser("serve", help="start the dashboard and read-only API (no database needed)")
     serve.add_argument("--port", type=int, default=8080)
 
     sub.add_parser("mcp", help="run the MCP server for agents over stdio (folder limited by XRAY_ROOT)")

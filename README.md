@@ -14,7 +14,10 @@ with a fix:     3 calls per user request, 2.9s of work (-68%), nothing done afte
 **Just looking? [Try the bundled samples in your browser](https://rkb32.github.io/overload-xray/)** — a static copy with the samples already analyzed. To read your own traces, run it locally:
 
 ```
+# Windows
 .venv\Scripts\python -m xray serve        # http://127.0.0.1:8080 , no database needed
+# macOS / Linux
+.venv/bin/python -m xray serve
 ```
 
 Open the page, drop in trace files (OTLP/JSON or OpenTelemetry SDK span JSON) or click a sample. You get a headline number, the findings with the fix each one points to, a per-service table, and a plain list of what xray could not see.
@@ -107,7 +110,7 @@ python -m xray mcp                                             # MCP server over
 - [docs/DESIGN.md](docs/DESIGN.md), [docs/DEPLOY.md](docs/DEPLOY.md), [docs/LAUNCH.md](docs/LAUNCH.md), [docs/FEATURES.md](docs/FEATURES.md) (what to build next, with sources)
 
 ## Status
-Built and tested locally and in Docker: everything above. **Deployed to AWS on 2026-10-03** with Terraform (Lambda behind API Gateway and CloudFront), redesigned page and the retry map shipped 2026-10-04, and checked from outside with `infra/verify_live.py` (20 of 20 pass), but **not announced yet**: the account's Lambda slots are shared with another product and cannot be capped until AWS raises the quota, so the address stays unlisted. Details and numbers in [docs/DEPLOY.md](docs/DEPLOY.md). Not built: Kubernetes, the Go rewrite of the analyzer, GraphQL, and a run on a real open-source microservice app. The CI workflow is written but has not run on GitHub.
+Built and tested locally and in Docker: everything above. **Deployed to AWS on 2026-10-03** with Terraform (Lambda behind API Gateway and CloudFront), redesigned page and the retry map shipped 2026-10-04, and checked from outside with `infra/verify_live.py` (20 of 20 pass), but **not announced yet**: the account's Lambda slots are shared with another product and cannot be capped until AWS raises the quota, so the address stays unlisted. Details and numbers in [docs/DEPLOY.md](docs/DEPLOY.md). Not built: Kubernetes, the Go rewrite of the analyzer, GraphQL, and a run on a real open-source microservice app. CI (tests against Postgres 16, plus a Docker build) runs on every push and pull request and is green.
 
 ## License
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

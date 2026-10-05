@@ -36,7 +36,7 @@ services:
       retries: 5
 
   collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.161.0  # pinned; Dependabot bumps it
     user: "0:0"  # the file exporter must be able to write into the bind-mounted folder
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:

@@ -1,0 +1,20 @@
+name: zizmor
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: zizmorcore/zizmor-action@006ecee4788dece29e278dcf69fa6bb01e09c47b # v0
+        with:
+          inputs: .
