@@ -11,6 +11,8 @@ with a fix:     3 calls per user request, 2.9s of work (-68%), nothing done afte
 
 ## Try it
 
+**Just looking? [Try the bundled samples in your browser](https://rkb32.github.io/overload-xray/)** — a static copy with the samples already analyzed. To read your own traces, run it locally:
+
 ```
 .venv\Scripts\python -m xray serve        # http://127.0.0.1:8080 , no database needed
 ```
