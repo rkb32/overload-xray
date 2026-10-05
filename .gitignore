@@ -6,4 +6,5 @@ __pycache__/
 # Personal study notes, handoff notes and local tool settings: they stay on disk, not in the repo.
 QUIZ.md
 HANDOFF.md
+CLAUDE.md
 .claude/
