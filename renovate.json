@@ -1,0 +1,36 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "America/Chicago",
+  "schedule": ["before 06:00 on Monday"],
+  "labels": ["dependencies"],
+
+  // Hosted Mend app merges via GitHub's native auto-merge ("Allow auto-merge"
+  // must be enabled in repo Settings > General).
+  "platformAutomerge": true,
+
+  // Dependabot watched pip, github-actions, docker; Renovate also picks up
+  // terraform (infra/) and docker-compose — listed explicitly for clarity,
+  // all are auto-detected by default.
+  "enabledManagers": [
+    "pip_requirements",
+    "github-actions",
+    "dockerfile",
+    "docker-compose",
+    "terraform"
+  ],
+
+  "packageRules": [
+    {
+      "description": "Group opentelemetry-* pip packages into one PR (parity with old dependabot config)",
+      "matchManagers": ["pip_requirements"],
+      "matchPackageNames": ["/^opentelemetry-/"],
+      "groupName": "opentelemetry"
+    },
+    {
+      "description": "Automerge minor and patch updates once CI is green; majors wait for manual review",
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    }
+  ]
+}
