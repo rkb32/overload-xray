@@ -1,7 +1,8 @@
-"""Read spans from files. Two JSON-lines formats are understood and can be mixed in one directory:
+"""Read spans from files. Three JSON formats are understood and can be mixed in one directory:
 
 - the OpenTelemetry Python SDK's own span JSON (what the demo services write directly)
 - OTLP/JSON, one export request per line (what the OpenTelemetry Collector's `file` exporter writes)
+- Zipkin v2 JSON, an array of spans per file (timestamp and duration are microseconds)
 """
 import glob
 import json
@@ -182,6 +183,56 @@ def _from_otlp(raw: dict) -> list[Span]:
     return spans
 
 
+# --- Zipkin v2 JSON (an array of spans per file) ------------------------------------------------------------------
+
+_ZIPKIN_KINDS = {"CLIENT", "SERVER", "PRODUCER", "CONSUMER"}
+
+
+def _zipkin_kind(raw: str | None) -> str:
+    if raw in _ZIPKIN_KINDS:
+        return raw
+    return "INTERNAL"  # a span without a kind is local work
+
+
+def _zipkin_error(tags: dict) -> tuple[bool, str]:
+    """Zipkin marks failure with the `error` tag; the value is the message, or bare truth like "true"."""
+    value = "" if tags.get("error") is None else str(tags.get("error"))
+    error = value.lower() not in ("", "false", "0")
+    return error, "" if value.lower() == "true" else value
+
+
+def _zipkin_service(raw: dict) -> str:
+    for name in ("localEndpoint", "remoteEndpoint"):  # the caller is the span's own service
+        endpoint = raw.get(name) or {}
+        if endpoint.get("serviceName"):
+            return endpoint["serviceName"]
+    return "unknown"
+
+
+def _from_zipkin(raw: dict) -> Span:
+    tags = raw.get("tags") or {}
+    start_ns = int(raw.get("timestamp") or 0) * 1000  # Zipkin timestamps are microseconds
+    duration_ns = int(raw.get("duration") or 0) * 1000
+    error, error_text = _zipkin_error(tags)
+    return Span(
+        trace_id=_with_hex_prefix(raw["traceId"]),
+        span_id=_with_hex_prefix(raw["id"]),
+        parent_id=_with_hex_prefix(raw.get("parentId") or "") or None,
+        service=_zipkin_service(raw),
+        name=raw.get("name") or "",
+        kind=_zipkin_kind(raw.get("kind")),
+        start_ns=start_ns,
+        end_ns=start_ns + duration_ns,
+        error=error,
+        queue_ns=_queue_ns(tags),
+        error_text=error_text,
+        http_status=_http_status(tags),
+        method=_method(tags),
+        target=_target(tags),
+        resend_count=_resend_count(tags),
+    )
+
+
 # --- loading ---------------------------------------------------------------------------------------------------
 
 class TraceFormatError(ValueError):
@@ -198,9 +249,11 @@ def _spans_from(item, source: str) -> list[Span]:
         return _from_otlp(item)
     if isinstance(item, dict) and "context" in item and "start_time" in item:
         return [_from_sdk(item)]
+    if isinstance(item, dict) and "id" in item and "traceId" in item:
+        return [_from_zipkin(item)]  # a Zipkin v2 span, on its own or one element of a file's array
     if isinstance(item, dict) and "data" in item and any(isinstance(d, dict) and "traceID" in d for d in item.get("data") or []):
         raise TraceFormatError(f"{source}: this looks like a Jaeger JSON export, which is not supported yet. Use OTLP/JSON.")
-    raise TraceFormatError(f"{source}: this is not an OpenTelemetry span or an OTLP/JSON export request")
+    raise TraceFormatError(f"{source}: this is not an OpenTelemetry span, an OTLP/JSON export request, or a Zipkin v2 span")
 
 
 def parse_text(text: str, source: str = "input", max_spans: int | None = None) -> list[Span]:
