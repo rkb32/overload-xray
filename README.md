@@ -60,6 +60,7 @@ python -m venv .venv
 
 .venv\Scripts\python -m demo.run_demo                          # one request, without and with the fix
 .venv\Scripts\python -m xray report spans/baseline             # per-edge numbers
+.venv\Scripts\python -m xray report spans/baseline --input-token-price 3 --output-token-price 15   # plus an estimate for the wasted LLM tokens
 .venv\Scripts\python -m xray diagnose spans/baseline           # findings and the fix each points to
 .venv\Scripts\python -m xray retries spans/baseline            # which calls were retried, how many layers, what it multiplied
 .venv\Scripts\python -m xray compare spans/baseline spans/fixed

@@ -157,9 +157,14 @@ function retryMap(result) {
 
 function markdown(result) {
   const s = result.summary;
-  const lines = ["# overload-xray report", "", `**${s.headline}**`, "",
+  const head = ["# overload-xray report", "", `**${s.headline}**`, "",
     `- user requests: ${s.user_requests}; calls between services: ${s.dependency_calls} (${s.amplification}× per user request)`,
-    `- work: ${s.work_s}s; used by callers: ${s.used_s}s (goodput ${pct(s.goodput)}); done after callers left: ${s.tail_s}s`, ""];
+    `- work: ${s.work_s}s; used by callers: ${s.used_s}s (goodput ${pct(s.goodput)}); done after callers left: ${s.tail_s}s`];
+  if (s.tokens_in || s.tokens_out) {
+    head.push(`- LLM tokens: ${s.tokens_in} in + ${s.tokens_out} out; ${s.wasted_tokens_in + s.wasted_tokens_out} were for work nobody used (an estimate)`);
+  }
+  head.push("");
+  const lines = [...head];
   if (result.findings.length) {
     lines.push("## Findings", "");
     result.findings.forEach((f) => lines.push(`- **${f.label}** on ${f.edge}: ${f.evidence}. Fix: ${f.advice}`));
@@ -199,6 +204,9 @@ function download(result) {
 function renderReport(result) {
   const s = result.summary;
   const hasEdges = result.edges.length > 0;
+  const hasTokens = s.tokens_in > 0 || s.tokens_out > 0;
+  const wastedTokens = s.wasted_tokens_in + s.wasted_tokens_out;
+  const totalTokens = s.tokens_in + s.tokens_out;
   const copy = h("button", { type: "button", class: "btn", onclick: async () => {
     try { await navigator.clipboard.writeText(markdown(result)); setStatus("Copied the report as Markdown."); }
     catch (error) { setStatus("Could not copy. Use “Download JSON” instead.", true); }
@@ -215,7 +223,9 @@ function renderReport(result) {
       card(pct(1 - s.goodput), "of the work was never used", wasteTone(s.goodput)),
       card(s.amplification.toFixed(1) + "×", "calls per user request", s.amplification >= 2 ? "mid" : ""),
       card(sec(s.tail_s), "of work done after callers had left", s.tail_s > 0 ? "bad" : ""),
-      card(sec(s.work_s), "of work in total")),
+      card(sec(s.work_s), "of work in total"),
+      hasTokens && card(wastedTokens.toLocaleString("en-US"), "LLM tokens for work nobody used", wastedTokens > 0 ? "bad" : "good"),
+      hasTokens && card(totalTokens.toLocaleString("en-US"), "LLM tokens in total", wastedTokens / totalTokens > 0.3 ? "mid" : "")),
     hasEdges && retryMap(result),
     hasEdges && h("h3", null, "What to do"),
     ...result.findings.map((f) =>

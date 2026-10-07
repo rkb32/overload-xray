@@ -1,4 +1,5 @@
 """The command line: the same findings the page shows, for people who would rather not upload anything."""
+import json
 import os
 
 from xray.cli import main
@@ -31,3 +32,39 @@ def test_retries_on_a_trace_with_no_calls_says_so(capsys, tmp_path):
     main(["retries", str(empty)])
 
     assert "no client calls" in capsys.readouterr().out
+
+
+def test_report_prints_the_wasted_token_estimate_with_the_price_flags(capsys, tmp_path):
+    trace = json.dumps({
+        "name": "generate", "context": {"trace_id": "0xt", "span_id": "0x11"}, "kind": "SpanKind.CLIENT",
+        "parent_id": "0x10", "start_time": "2026-10-03T12:00:00.000Z", "end_time": "2026-10-03T12:00:01.000Z",
+        "status": {"status_code": "ERROR", "description": "ReadTimeout: "},
+        "attributes": {"gen_ai.usage.input_tokens": 400000, "gen_ai.usage.output_tokens": 100000},
+        "resource": {"attributes": {"service.name": "agent"}},
+    })
+    file = tmp_path / "agent.jsonl"
+    file.write_text(trace + "\n", encoding="utf-8")
+
+    main(["report", str(file), "--input-token-price", "3", "--output-token-price", "15"])
+
+    out = capsys.readouterr().out
+    assert "LLM tokens: 400,000 in + 100,000 out" in out
+    assert "about $2.70 wasted" in out  # 400000 / 1e6 * 3 + 100000 / 1e6 * 15
+
+
+def test_report_without_a_price_never_prints_dollars(capsys, tmp_path):
+    trace = json.dumps({
+        "name": "generate", "context": {"trace_id": "0xt", "span_id": "0x11"}, "kind": "SpanKind.CLIENT",
+        "parent_id": "0x10", "start_time": "2026-10-03T12:00:00.000Z", "end_time": "2026-10-03T12:00:01.000Z",
+        "status": {"status_code": "ERROR", "description": "ReadTimeout: "},
+        "attributes": {"gen_ai.usage.input_tokens": 5},
+        "resource": {"attributes": {"service.name": "agent"}},
+    })
+    file = tmp_path / "agent.jsonl"
+    file.write_text(trace + "\n", encoding="utf-8")
+
+    main(["report", str(file)])
+
+    out = capsys.readouterr().out
+    assert "LLM tokens: 5 in + 0 out" in out
+    assert "$" not in out  # token counts are free; dollar estimates need a price flag
