@@ -2,6 +2,8 @@
 import json
 import os
 
+import pytest
+
 from xray.cli import main
 
 SAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "xray", "samples")
@@ -68,3 +70,36 @@ def test_report_without_a_price_never_prints_dollars(capsys, tmp_path):
     out = capsys.readouterr().out
     assert "LLM tokens: 5 in + 0 out" in out
     assert "$" not in out  # token counts are free; dollar estimates need a price flag
+
+
+# The build gate: thresholds and a non-zero exit code -------------------------------------------------------------
+
+def test_report_exits_1_when_goodput_is_below_the_minimum(capsys):
+    # The bundled sample wastes all of its work: goodput is 0%.
+    with pytest.raises(SystemExit) as error:
+        main(["report", LAYERED, "--min-goodput", "0.1"])
+
+    assert error.value.code == 1
+    assert "FAIL: goodput is 0%, below --min-goodput 10%" in capsys.readouterr().out
+
+
+def test_report_exits_1_when_amplification_is_above_the_maximum(capsys):
+    with pytest.raises(SystemExit) as error:
+        main(["report", LAYERED, "--max-amplification", "2"])
+
+    assert error.value.code == 1
+    assert "FAIL: amplification is" in capsys.readouterr().out
+
+
+def test_report_passes_when_the_trace_is_inside_the_limits(capsys):
+    main(["report", LAYERED, "--min-goodput", "0", "--max-amplification", "20"])
+
+    assert "FAIL:" not in capsys.readouterr().out
+
+
+def test_report_still_prints_the_report_before_it_fails(capsys):
+    with pytest.raises(SystemExit):
+        main(["report", LAYERED, "--min-goodput", "0.5"])
+
+    out = capsys.readouterr().out
+    assert "user requests:" in out and "FAIL:" in out  # the full report, then the verdict

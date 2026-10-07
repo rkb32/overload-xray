@@ -1,0 +1,91 @@
+name: "overload-xray: gate a PR on goodput and amplification"
+description: >-
+  Analyse trace files with overload-xray and fail the build when goodput falls below a floor or
+  amplification rises above a ceiling. When given a baseline, the diff between it and the current
+  traces is posted as a comment on the pull request.
+inputs:
+  path:
+    description: >-
+      Trace file or directory to gate on (SDK JSON lines, OTLP/JSON, or Zipkin v2).
+    required: true
+  min-goodput:
+    description: "Exit 1 when goodput is below this share (0..1)."
+    required: false
+    default: ""
+  max-amplification:
+    description: "Exit 1 when amplification is above this many calls per user request."
+    required: false
+    default: ""
+  baseline:
+    description: >-
+      Optional: a second trace file or directory the 'path' is diffed against. When set, the
+      comparison is posted as a pull request comment (needs pull-requests: write in the caller).
+    required: false
+    default: ""
+  token:
+    description: "GitHub token for the pull request comment. Only needed when 'baseline' is set."
+    required: false
+    default: ${{ github.token }}
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0, same pin the repo uses
+      with:
+        python-version: "3.14"
+    - name: Install the dependencies
+      shell: bash
+      env:
+        XRAY_HOME: ${{ github.action_path }}
+        XRAY_REQUIREMENTS: ${{ github.action_path }}/requirements.txt
+      run: python -m pip install --quiet --requirement "$XRAY_REQUIREMENTS"
+    # The gate must not stop the comment from being posted, so it records its verdict instead of
+    # failing here; a later step turns the verdict into the job's exit code.
+    - name: Gate the traces
+      shell: bash
+      continue-on-error: true
+      env:
+        XRAY_HOME: ${{ github.action_path }}
+        XRAY_PATH: ${{ inputs.path }}
+        MIN_GOODPUT: ${{ inputs.min-goodput }}
+        MAX_AMPLIFICATION: ${{ inputs.max-amplification }}
+      run: |
+        args=()
+        if [ -n "$MIN_GOODPUT" ]; then args+=(--min-goodput "$MIN_GOODPUT"); fi
+        if [ -n "$MAX_AMPLIFICATION" ]; then args+=(--max-amplification "$MAX_AMPLIFICATION"); fi
+        # bash -e would stop here and never record the verdict, so the exit is captured explicitly.
+        set +e
+        PYTHONPATH="$XRAY_HOME${PYTHONPATH:+:$PYTHONPATH}" python -m xray report "$XRAY_PATH" "${args[@]}"
+        failed=$?
+        set -e
+        echo "report_failed=$failed" >> "$GITHUB_OUTPUT"
+    - name: Diff against the baseline
+      if: inputs.baseline != ''
+      shell: bash
+      env:
+        XRAY_HOME: ${{ github.action_path }}
+        XRAY_PATH: ${{ inputs.path }}
+        XRAY_BASELINE: ${{ inputs.baseline }}
+      run: |
+        PYTHONPATH="$XRAY_HOME${PYTHONPATH:+:$PYTHONPATH}" python -m xray compare "$XRAY_BASELINE" "$XRAY_PATH" > "$RUNNER_TEMP/xray-diff.txt" 2>&1 || true
+    - name: Post the baseline diff on the pull request
+      if: inputs.baseline != ''
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7 pinned
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const fs = require('fs');
+          const file = process.env.RUNNER_TEMP + '/xray-diff.txt';
+          let body;
+          try { body = fs.readFileSync(file, 'utf8'); } catch (_) { body = ''; }
+          if (!body) return;  // no baseline to compare, or the compare step could not produce one
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: '### overload-xray baseline diff\n\n```\n' + body + '\n```',
+          });
+    - name: Return the gate verdict
+      if: steps.gate.outputs.report_failed == '1'
+      shell: bash
+      run: exit 1
