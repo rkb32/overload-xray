@@ -2,5 +2,14 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "OpenTelemetry core and contrib pin opentelemetry-semantic-conventions independently, so they must upgrade together",
+      "matchPackageNames": [
+        "/^opentelemetry-/"
+      ],
+      "groupName": "opentelemetry"
+    }
   ]
 }
