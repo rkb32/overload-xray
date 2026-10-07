@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     report = sub.add_parser("report", help="per-edge amplification, goodput and zombie work")
-    report.add_argument("path", help="a span file, or a directory of them (SDK JSON lines or OTLP/JSON)")
+    report.add_argument("path", help="a span file, or a directory of them (SDK JSON lines, OTLP/JSON, or Zipkin v2)")
     report.add_argument("--jev", action="store_true", help=JEV_HELP)
 
     diag = sub.add_parser("diagnose", help="typed findings and the fix each one points to")

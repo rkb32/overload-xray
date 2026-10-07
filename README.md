@@ -20,7 +20,7 @@ with a fix:     3 calls per user request, 2.9s of work (-68%), nothing done afte
 .venv/bin/python -m xray serve
 ```
 
-Open the page, drop in trace files (OTLP/JSON or OpenTelemetry SDK span JSON) or click a sample. You get a headline number, the findings with the fix each one points to, a per-service table, and a plain list of what xray could not see.
+Open the page, drop in trace files (OTLP/JSON, OpenTelemetry SDK span JSON, or Zipkin v2 JSON) or click a sample. You get a headline number, the findings with the fix each one points to, a per-service table, and a plain list of what xray could not see.
 
 From a terminal: `curl --data-binary @traces.json http://127.0.0.1:8080/api/analyze`
 
@@ -101,7 +101,7 @@ python -m xray mcp                                             # MCP server over
 
 ## Where things are
 - `xray/api.py`, `xray/product.py`, `xray/limits.py`, `xray/static/`, `xray/samples/`: the product (upload API, report, limits, page, samples)
-- `xray/spans.py` reads span files (two formats, de-duplicated); `xray/analyze.py` is the maths, with `zombie_tail_ns` as the core rule
+- `xray/spans.py` reads span files (three formats, de-duplicated); `xray/analyze.py` is the maths, with `zombie_tail_ns` as the core rule
 - `xray/retries.py` the retry map (attempts per call, layers, retried writes); `demo/make_layered_sample.py` writes the synthetic two-layer sample
 - `xray/classify.py` caller-error rules plus the optional Jev asker; `xray/diagnose.py` typed findings
 - `xray/store.py`, `xray/schema.sql` Postgres for saved runs; `xray/mcp_server.py` and `skills/` the agent interfaces
