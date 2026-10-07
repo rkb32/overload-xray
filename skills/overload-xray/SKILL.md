@@ -39,8 +39,9 @@ Paths you pass to the tools are relative to `XRAY_ROOT`. Anything outside it (`.
    - `retried_writes` -> check the write is idempotent (idempotency key or a duplicate check) or stop retrying it
    - `retry_budget` -> cap retries with a budget; `retried_client_errors` -> do not retry a 4xx (except 408 and 429)
    Call `retries` for the evidence behind these: attempts per call, how many layers retried, what that multiplied. A row marked "inferred" was recognised from repeated calls after a failure, not read from a resend count; say so.
-4. After a fix is deployed, call `compare` with the before and after folders. Expect the tail to reach 0 with cancellation. Goodput only recovers once doomed work is refused.
-5. Tell the user the numbers, the finding and the fix, and what you could not know (see below).
+4. If the report's LLM-token line is non-zero, read it as an estimate of the tokens billed for work nobody used (a job whose caller had already gone, or a client call that never delivered an answer). The dollar figure only appears when a price was given, and whether a cancelled call stops billing depends on the provider.
+5. After a fix is deployed, call `compare` with the before and after folders. Expect the tail to reach 0 with cancellation. Goodput only recovers once doomed work is refused.
+6. Tell the user the numbers, the finding and the fix, and what you could not know (see below).
 
 ## Limits to state, not hide
 - Waiting in a queue is not work. Services should set the span attribute `app.queue_wait_ms`; without it, waiting counts as working.

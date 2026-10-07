@@ -32,6 +32,8 @@ class Span:
     method: str = ""  # HTTP method of a CLIENT span, upper case ("" when the span says nothing)
     target: str = ""  # host[:port]/path the call went to: no credentials, query or fragment (those can hold secrets)
     resend_count: int | None = None  # http.request.resend_count: the client library says "this is attempt n+1"
+    input_tokens: int = 0  # gen_ai.usage.input_tokens: what an LLM call was billed for input
+    output_tokens: int = 0  # gen_ai.usage.output_tokens: what it was billed for output
 
     @property
     def duration_ns(self) -> int:
@@ -102,11 +104,35 @@ def _resend_count(attributes: dict) -> int | None:
     return None
 
 
+def _tokens(attributes: dict) -> tuple[int, int]:
+    """GenAI usage tokens as (input, output), from the current and the older semantic-convention names:
+    `gen_ai.usage.input_tokens`/`output_tokens` (stable) and `gen_ai.usage.prompt_tokens`/`completion_tokens`.
+    A value that is not a number is ignored: this is an estimate, and another provider's convention should
+    not be misread as one of these."""
+
+    def count(*keys: str) -> int:
+        for key in keys:
+            value = attributes.get(key)
+            if value is None:
+                continue
+            try:
+                return max(0, int(value))
+            except (TypeError, ValueError):
+                return 0
+        return 0
+
+    return count("gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens"), count(
+        "gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens"
+    )
+
+
 # --- OpenTelemetry Python SDK JSON (one span per line) ---------------------------------------------------------
 
 def _from_sdk(raw: dict) -> Span:
     resource = raw.get("resource") or {}
     resource_attributes = resource.get("attributes", resource)
+    attributes = raw.get("attributes") or {}
+    input_tokens, output_tokens = _tokens(attributes)
     return Span(
         trace_id=raw["context"]["trace_id"],
         span_id=raw["context"]["span_id"],
@@ -117,12 +143,14 @@ def _from_sdk(raw: dict) -> Span:
         start_ns=_iso_to_ns(raw["start_time"]),
         end_ns=_iso_to_ns(raw["end_time"]),
         error=(raw.get("status") or {}).get("status_code") == "ERROR",
-        queue_ns=_queue_ns(raw.get("attributes") or {}),
+        queue_ns=_queue_ns(attributes),
         error_text=(raw.get("status") or {}).get("description") or "",
-        http_status=_http_status(raw.get("attributes") or {}),
-        method=_method(raw.get("attributes") or {}),
-        target=_target(raw.get("attributes") or {}),
-        resend_count=_resend_count(raw.get("attributes") or {}),
+        http_status=_http_status(attributes),
+        method=_method(attributes),
+        target=_target(attributes),
+        resend_count=_resend_count(attributes),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
     )
 
 
@@ -161,6 +189,7 @@ def _from_otlp(raw: dict) -> list[Span]:
             for span in scope_spans.get("spans", []):
                 status = span.get("status") or {}
                 attributes = _otlp_attributes(span.get("attributes"))
+                input_tokens, output_tokens = _tokens(attributes)
                 spans.append(
                     Span(
                         trace_id=_with_hex_prefix(span["traceId"]),
@@ -178,6 +207,8 @@ def _from_otlp(raw: dict) -> list[Span]:
                         method=_method(attributes),
                         target=_target(attributes),
                         resend_count=_resend_count(attributes),
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
                     )
                 )
     return spans
@@ -214,6 +245,7 @@ def _from_zipkin(raw: dict) -> Span:
     start_ns = int(raw.get("timestamp") or 0) * 1000  # Zipkin timestamps are microseconds
     duration_ns = int(raw.get("duration") or 0) * 1000
     error, error_text = _zipkin_error(tags)
+    input_tokens, output_tokens = _tokens(tags)
     return Span(
         trace_id=_with_hex_prefix(raw["traceId"]),
         span_id=_with_hex_prefix(raw["id"]),
@@ -230,6 +262,8 @@ def _from_zipkin(raw: dict) -> Span:
         method=_method(tags),
         target=_target(tags),
         resend_count=_resend_count(tags),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
     )
 
 

@@ -191,3 +191,71 @@ def test_fanout_is_per_hop_and_reach_is_per_user_request():
     found = edges(analyze(spans))
     assert (found[("A", "B")].calls, found[("A", "B")].fanout, found[("A", "B")].reach) == (3, 3.0, 3.0)
     assert (found[("B", "C")].calls, found[("B", "C")].fanout, found[("B", "C")].reach) == (3, 1.0, 3.0)
+
+
+# --- wasted LLM tokens -----------------------------------------------------------------------------------------
+
+def test_tokens_on_a_kept_job_are_not_wasted():
+    root = span("a", None, "A", "SERVER", 0, 6)
+    call = span("c1", "a", "A", "CLIENT", 0, 1)
+    work = span("b1", "c1", "B", "SERVER", 0, 5, input_tokens=100, output_tokens=20)
+
+    report = analyze([root, call, work])
+
+    assert (report.input_tokens, report.output_tokens) == (100, 20)
+    assert report.wasted_input_tokens == 0 and report.wasted_output_tokens == 0
+
+
+def test_tokens_in_a_job_whose_caller_left_are_wasted():
+    root = span("a", None, "A", "SERVER", 0, 1)
+    call = span("c1", "a", "A", "CLIENT", 0, 1, error=True)
+    work = span("b1", "c1", "B", "SERVER", 0, 5, input_tokens=100, output_tokens=20)
+
+    report = analyze([root, call, work])
+
+    assert report.wasted_input_tokens == 100 and report.wasted_output_tokens == 20
+
+
+def test_tokens_on_a_client_call_that_failed_are_wasted_even_when_the_job_was_used():
+    # The caller of the job got its answer, but the LLM call itself never delivered one.
+    root = span("a", None, "A", "SERVER", 0, 2)
+    gen = span("g1", "a", "A", "CLIENT", 0, 1, error=True, input_tokens=10)
+
+    report = analyze([root, gen])
+
+    assert report.wasted_input_tokens == 10
+
+
+def test_tokens_on_a_client_call_that_succeeded_are_kept():
+    root = span("a", None, "A", "SERVER", 0, 2)
+    gen = span("g1", "a", "A", "CLIENT", 0, 1, input_tokens=10)
+
+    report = analyze([root, gen])
+
+    assert report.wasted_input_tokens == 0
+
+
+def test_a_retried_call_that_answered_an_error_wasted_its_tokens():
+    # The caller retried, so the first attempt's 503 answer was never used by anyone.
+    root = span("a", None, "A", "SERVER", 0, 3)
+    first = span("c1", "a", "A", "CLIENT", 0, 1, error=True, http_status=503, input_tokens=50)
+    second = span("c2", "a", "A", "CLIENT", 1, 2, input_tokens=50)
+
+    report = analyze([root, first, second])
+
+    assert report.wasted_input_tokens == 50
+
+
+def test_token_render_with_prices_estimates_the_wasted_spend():
+    report = analyze([
+        span("a", None, "A", "SERVER", 0, 1),
+        span("c1", "a", "A", "CLIENT", 0, 1, error=True),
+        span("b1", "c1", "B", "SERVER", 0, 5, input_tokens=200_000, output_tokens=100_000),
+    ])
+
+    out = report.render(input_price_per_m=3, output_price_per_m=15)
+
+    assert "LLM tokens: 200,000 in + 100,000 out" in out
+    assert "300,000 were for work nobody used (100%)" in out
+    assert "about $2.10 wasted" in out  # 200000 / 1e6 + 100000 * 15 / 1e6
+    assert "an estimate: whether a cancelled call stops billing depends on the provider" in out

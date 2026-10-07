@@ -6,11 +6,12 @@ from xray.product import MAX_FILES, UploadError, _display_name, analyze_upload
 from xray.spans import TooManySpans, TraceFormatError, parse_text
 
 
-def sdk_line(span_id, parent=None, kind="SERVER"):
+def sdk_line(span_id, parent=None, kind="SERVER", status="UNSET", attributes=None):
     return json.dumps({
         "name": "n", "context": {"trace_id": "0xt", "span_id": span_id}, "kind": f"SpanKind.{kind}", "parent_id": parent,
         "start_time": "2026-10-03T12:00:00.000Z", "end_time": "2026-10-03T12:00:01.000Z",
-        "status": {"status_code": "UNSET"}, "attributes": {}, "resource": {"attributes": {"service.name": "svc"}},
+        "status": {"status_code": status}, "attributes": attributes or {},
+        "resource": {"attributes": {"service.name": "svc"}},
     })
 
 
@@ -133,3 +134,18 @@ def test_names_in_the_retry_map_are_cut_to_a_sane_length():
     assert result["retries"]["totals"]["retries"] == 1
     assert all(len(e["callee"]) <= 80 for e in result["retries"]["edges"])
     assert all(len(w["target"]) <= 80 for w in result["retries"]["writes"])
+
+
+def test_the_summary_counts_wasted_llm_tokens_and_swears_they_are_an_estimate():
+    # The callee job of a timed-out client call runs to completion with LLM tokens on it: the result was never used.
+    lines = [
+        sdk_line("0x1"),
+        sdk_line("0x2", "0x1", "CLIENT", status="ERROR"),
+        sdk_line("0x3", "0x2", attributes={"gen_ai.usage.input_tokens": 120, "gen_ai.usage.output_tokens": 40}),
+    ]
+    result = analyze_upload([("agent.jsonl", "\n".join(lines))])
+
+    assert result["summary"]["tokens_in"] == 120 and result["summary"]["tokens_out"] == 40
+    assert result["summary"]["wasted_tokens_in"] == 120 and result["summary"]["wasted_tokens_out"] == 40
+    (note,) = [n for n in result["notes"] if n["kind"] == "tokens_estimate"]
+    assert "estimate, not an invoice" in note["text"] and "depends on the provider" in note["text"]

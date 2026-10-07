@@ -57,6 +57,10 @@ class Report:
     user_requests: int
     edges: list[EdgeStats] = field(default_factory=list)
     unclassified: int = 0  # caller errors whose text nothing could classify (counted as "gave up")
+    input_tokens: int = 0  # gen_ai.usage tokens, across all the spans
+    output_tokens: int = 0
+    wasted_input_tokens: int = 0  # tokens whose result nobody used: an estimate, not an invoice
+    wasted_output_tokens: int = 0
 
     @property
     def dependency_calls(self) -> int:
@@ -86,7 +90,7 @@ class Report:
     def goodput(self) -> float:
         return self.used_work_ns / self.total_work_ns if self.total_work_ns else 1.0
 
-    def render(self) -> str:
+    def render(self, input_price_per_m: float | None = None, output_price_per_m: float | None = None) -> str:
         header = f"{'edge':<26}{'calls':>6}{'per user':>10}{'work':>8}{'goodput':>9}{'zombie':>8}{'tail':>8}"
         lines = [
             f"user requests: {self.user_requests}   dependency calls: {self.dependency_calls}"
@@ -108,6 +112,22 @@ class Report:
         ]
         if self.unclassified:
             lines.append(f"note    = {self.unclassified} caller errors could not be classified; counted as 'gave up'")
+        if self.input_tokens or self.output_tokens:
+            total = self.input_tokens + self.output_tokens
+            wasted = self.wasted_input_tokens + self.wasted_output_tokens
+            share = f" ({wasted / total:.0%})" if total else ""
+            lines.append("")
+            lines.append(f"LLM tokens: {self.input_tokens:,} in + {self.output_tokens:,} out; "
+                         f"{wasted:,} were for work nobody used{share}")
+            has_price = bool(input_price_per_m or output_price_per_m)
+            if has_price and wasted:
+                cost = self.wasted_input_tokens / 1e6 * (input_price_per_m or 0) + \
+                    self.wasted_output_tokens / 1e6 * (output_price_per_m or 0)
+                lines.append(
+                    f"price   = about ${cost:,.2f} wasted at ${(input_price_per_m or 0):g}/M in and "
+                    f"${(output_price_per_m or 0):g}/M out"
+                )
+                lines.append("           an estimate: whether a cancelled call stops billing depends on the provider")
         return "\n".join(lines)
 
 
@@ -200,6 +220,26 @@ def analyze(spans: list[Span], tolerance_ns: int = DEFAULT_TOLERANCE_NS, ask: As
     unclassified = sum(
         1 for client in caller_of.values() if client.error and error_kind(client.error_text, client.http_status, ask) == UNKNOWN
     )
+
+    # LLM tokens are an estimate, not an invoice: a token is "wasted" when the result nobody used paid for it.
+    # That is a call inside a job that was itself abandoned (so all of its work went unused), or a client call that
+    # never delivered an answer (it failed, or it was one of a retry's discarded attempts). Whether a cancelled call
+    # stops billing depends on the provider, and the report says so.
+    input_tokens = output_tokens = wasted_input = wasted_output = 0
+    for span in spans:
+        if not (span.input_tokens or span.output_tokens):
+            continue
+        job = span if span.kind == "SERVER" else _enclosing_server(span, by_id)
+        job_used = job is None or job.span_id not in verdicts or verdicts[job.span_id][0]
+        failed_call = span.kind == "CLIENT" and (
+            span.error or (span.http_status is not None and (span.http_status >= 500 or span.http_status in (408, 429)))
+        )
+        input_tokens += span.input_tokens
+        output_tokens += span.output_tokens
+        if not job_used or failed_call:
+            wasted_input += span.input_tokens
+            wasted_output += span.output_tokens
+
     edges = [
         EdgeStats(
             caller=caller,
@@ -214,4 +254,4 @@ def analyze(spans: list[Span], tolerance_ns: int = DEFAULT_TOLERANCE_NS, ask: As
         )
         for (caller, callee), t in sorted(totals.items())
     ]
-    return Report(len(roots), edges, unclassified)
+    return Report(len(roots), edges, unclassified, input_tokens, output_tokens, wasted_input, wasted_output)

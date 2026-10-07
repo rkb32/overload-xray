@@ -26,6 +26,10 @@ def main(argv: list[str] | None = None) -> None:
     report = sub.add_parser("report", help="per-edge amplification, goodput and zombie work")
     report.add_argument("path", help="a span file, or a directory of them (SDK JSON lines, OTLP/JSON, or Zipkin v2)")
     report.add_argument("--jev", action="store_true", help=JEV_HELP)
+    report.add_argument("--input-token-price", type=float, metavar="USD_PER_M",
+                        help="USD per million input tokens: adds a dollar estimate for the tokens wasted")
+    report.add_argument("--output-token-price", type=float, metavar="USD_PER_M",
+                        help="USD per million output tokens: adds a dollar estimate for the tokens wasted")
 
     diag = sub.add_parser("diagnose", help="typed findings and the fix each one points to")
     diag.add_argument("path")
@@ -50,7 +54,8 @@ def main(argv: list[str] | None = None) -> None:
 
     args = parser.parse_args(argv)
     if args.command == "report":
-        print(analyze(load_spans(args.path), ask=_ask(args)).render())
+        printed = analyze(load_spans(args.path), ask=_ask(args))
+        print(printed.render(getattr(args, "input_token_price", None), getattr(args, "output_token_price", None)))
     elif args.command == "diagnose":
         spans = load_spans(args.path)
         print(render_findings(diagnose(analyze(spans, ask=_ask(args))) + diagnose_retries(retry_map(spans))))

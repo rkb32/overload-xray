@@ -97,6 +97,14 @@ def _notes(report: Report, spans: list[Span], retries: RetryReport) -> list[dict
             "text": f"{report.unclassified} caller errors could not be classified as 'caller gave up' or 'callee replied "
                     "with an error'. They were counted as 'gave up', so the zombie numbers may be overstated.",
         })
+    if report.input_tokens or report.output_tokens:
+        notes.append({
+            "kind": "tokens_estimate",
+            "text": "LLM tokens are an estimate, not an invoice: they are counted for calls whose surrounding job was "
+                    f"abandoned or whose client call never delivered an answer ({report.wasted_input_tokens:,} in + "
+                    f"{report.wasted_output_tokens:,} out of {report.input_tokens:,} + {report.output_tokens:,}). Whether "
+                    "a cancelled call stops billing depends on the provider.",
+        })
     if retries.retries and any(e.inferred for e in retries.edges):
         notes.append({
             "kind": "retries_inferred",
@@ -165,6 +173,10 @@ def analyze_upload(files: list[tuple[str, str]]) -> dict:
             "goodput": round(report.goodput, 4),
             "zombie_s": _seconds(report.zombie_work_ns),
             "tail_s": _seconds(report.tail_ns),
+            "tokens_in": report.input_tokens,
+            "tokens_out": report.output_tokens,
+            "wasted_tokens_in": report.wasted_input_tokens,
+            "wasted_tokens_out": report.wasted_output_tokens,
         },
         "edges": [
             {

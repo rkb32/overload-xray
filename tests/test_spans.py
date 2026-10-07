@@ -197,3 +197,68 @@ def test_otlp_json_reads_method_target_and_resend_count(tmp_path):
     (span,) = load_spans(str(file))
 
     assert (span.method, span.target, span.resend_count) == ("POST", "billing:8080/charge", 1)
+
+
+# --- gen_ai usage tokens ---------------------------------------------------------------------------------------
+
+def test_sdk_json_reads_gen_ai_usage_tokens(tmp_path):
+    raw = dict(REAL_CLIENT_ERROR_SPAN, attributes={"gen_ai.usage.input_tokens": 120, "gen_ai.usage.output_tokens": 40})
+    file = tmp_path / "agent.jsonl"
+    file.write_text(json.dumps(raw) + "\n", encoding="utf-8")
+
+    (span,) = load_spans(str(file))
+
+    assert (span.input_tokens, span.output_tokens) == (120, 40)
+
+
+def test_otlp_json_reads_gen_ai_usage_tokens_as_strings(tmp_path):
+    client = {
+        "traceId": "078f4a15714fecfef7b2146e0b9f5f32", "spanId": "449d99ea22da8017", "parentSpanId": "3d863283a9249b63",
+        "name": "generate", "kind": 3, "startTimeUnixNano": "1790000000000000000", "endTimeUnixNano": "1790000001000000000",
+        "status": {},
+        "attributes": [
+            {"key": "gen_ai.usage.input_tokens", "value": {"intValue": "1200"}},
+            {"key": "gen_ai.usage.output_tokens", "value": {"intValue": "300"}},
+        ],
+    }
+    document = {"resourceSpans": [{"resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "a"}}]},
+                                   "scopeSpans": [{"spans": [client]}]}]}
+    file = tmp_path / "otlp.json"
+    file.write_text(json.dumps(document) + "\n", encoding="utf-8")
+
+    (span,) = load_spans(str(file))
+
+    assert (span.input_tokens, span.output_tokens) == (1200, 300)
+
+
+def test_the_older_gen_ai_convention_names_are_read_too(tmp_path):
+    raw = dict(REAL_CLIENT_ERROR_SPAN, attributes={"gen_ai.usage.prompt_tokens": 7, "gen_ai.usage.completion_tokens": 9})
+    file = tmp_path / "agent.jsonl"
+    file.write_text(json.dumps(raw) + "\n", encoding="utf-8")
+
+    (span,) = load_spans(str(file))
+
+    assert (span.input_tokens, span.output_tokens) == (7, 9)
+
+
+def test_zipkin_tags_have_no_tokens(tmp_path):
+    file = tmp_path / "zipkin.json"
+    file.write_text(json.dumps([{
+        "traceId": "e05063c5f98a7a8d", "id": "24771e40391986be", "name": "generate",
+        "timestamp": 1791067277117856, "duration": 1000,
+        "tags": {"gen_ai.usage.input_tokens": "50", "gen_ai.usage.output_tokens": "25"},
+    }]) + "\n", encoding="utf-8")
+
+    (span,) = load_spans(str(file))
+
+    assert (span.input_tokens, span.output_tokens) == (50, 25)
+
+
+def test_a_token_value_that_is_not_a_number_is_ignored_not_a_crash(tmp_path):
+    raw = dict(REAL_CLIENT_ERROR_SPAN, attributes={"gen_ai.usage.input_tokens": "many", "gen_ai.usage.output_tokens": -3})
+    file = tmp_path / "agent.jsonl"
+    file.write_text(json.dumps(raw) + "\n", encoding="utf-8")
+
+    (span,) = load_spans(str(file))
+
+    assert span.input_tokens == 0 and span.output_tokens == 0  # negative is read as zero: an estimate does not go negative
