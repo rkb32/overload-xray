@@ -19,6 +19,19 @@ def _ask(args):
     return jev_asker()
 
 
+def _check_thresholds(report, min_goodput, max_amplification) -> None:
+    """Turn the report into a build gate: exit 1 when the trace looks worse than the caller's limits."""
+    failed = False
+    if min_goodput is not None and report.goodput < min_goodput:
+        print(f"FAIL: goodput is {report.goodput:.0%}, below --min-goodput {min_goodput:.0%}")
+        failed = True
+    if max_amplification is not None and report.amplification > max_amplification:
+        print(f"FAIL: amplification is {report.amplification:.1f}x, above --max-amplification {max_amplification:g}")
+        failed = True
+    if failed:
+        raise SystemExit(1)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="xray", description="Find wasted work in OpenTelemetry traces")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -30,6 +43,10 @@ def main(argv: list[str] | None = None) -> None:
                         help="USD per million input tokens: adds a dollar estimate for the tokens wasted")
     report.add_argument("--output-token-price", type=float, metavar="USD_PER_M",
                         help="USD per million output tokens: adds a dollar estimate for the tokens wasted")
+    report.add_argument("--min-goodput", type=float, metavar="RATIO",
+                        help="fail (exit 1) when goodput is below this share, e.g. --min-goodput 0.8")
+    report.add_argument("--max-amplification", type=float, metavar="TIMES",
+                        help="fail (exit 1) when calls are above this many per user request, e.g. --max-amplification 2")
 
     diag = sub.add_parser("diagnose", help="typed findings and the fix each one points to")
     diag.add_argument("path")
@@ -56,6 +73,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "report":
         printed = analyze(load_spans(args.path), ask=_ask(args))
         print(printed.render(getattr(args, "input_token_price", None), getattr(args, "output_token_price", None)))
+        _check_thresholds(printed, getattr(args, "min_goodput", None), getattr(args, "max_amplification", None))
     elif args.command == "diagnose":
         spans = load_spans(args.path)
         print(render_findings(diagnose(analyze(spans, ask=_ask(args))) + diagnose_retries(retry_map(spans))))

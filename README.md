@@ -92,6 +92,28 @@ python -m xray mcp                                             # MCP server over
 
 **Jev (optional):** `--jev` asks TypeSafe's Jev model to classify caller errors the rules cannot place. It sends scrubbed error text to a third party, needs `TYPESAFE_API_KEY`, and is off by default. Tested against the SDK's real response types; not run against the live API.
 
+## Use it as a CI gate
+
+`report` can stop a build when a trace shows the shape of a retry storm:
+
+```
+python -m xray report traces/ --min-goodput 0.8 --max-amplification 2   # exits 1 on a regression
+```
+
+or, in a workflow, the composite action wraps it (and can post the before/after diff on the pull request):
+
+```yaml
+permissions:
+  pull-requests: write        # only needed for the baseline comment
+steps:
+  - uses: rkb32/overload-xray@<version>
+    with:
+      path: traces/fixed
+      min-goodput: "0.8"
+      max-amplification: "2"
+      baseline: traces/before   # optional: posts 'python -m xray compare' as a PR comment
+```
+
 ## Definitions
 - **amplification**: calls made to a dependency per user request (per edge: *fan-out* per hop, *reach* per user request)
 - **goodput**: share of the callee's running time whose result the caller used
