@@ -125,7 +125,7 @@ steps:
 ## Where things are
 - `xray/api.py`, `xray/product.py`, `xray/limits.py`, `xray/static/`, `xray/samples/`: the product (upload API, report, limits, page, samples)
 - `xray/spans.py` reads span files (three formats, de-duplicated); `xray/analyze.py` is the maths, with `zombie_tail_ns` as the core rule
-- `xray/retries.py` the retry map (attempts per call, layers, retried writes); `demo/make_layered_sample.py` writes the synthetic two-layer sample
+- `xray/retries.py` the retry map (attempts per call, layers, retried writes); `demo/make_layered_sample.py` and `demo/make_more_samples.py` write the synthetic samples (deep chain, fan-out, queue wait, hedged requests, clock skew)
 - `xray/classify.py` caller-error rules plus the optional Jev asker; `xray/diagnose.py` typed findings
 - `xray/store.py`, `xray/schema.sql` Postgres for saved runs; `xray/mcp_server.py` and `skills/` the agent interfaces
 - `demo/` two small services, the deadline middleware, the demo runners and the load test
