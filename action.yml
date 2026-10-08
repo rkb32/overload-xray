@@ -70,7 +70,7 @@ runs:
         PYTHONPATH="$XRAY_HOME${PYTHONPATH:+:$PYTHONPATH}" python -m xray compare "$XRAY_BASELINE" "$XRAY_PATH" > "$RUNNER_TEMP/xray-diff.txt" 2>&1 || true
     - name: Post the baseline diff on the pull request
       if: inputs.baseline != ''
-      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7 pinned
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9 pinned
       with:
         github-token: ${{ inputs.token }}
         script: |
