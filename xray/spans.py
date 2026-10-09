@@ -1,8 +1,9 @@
-"""Read spans from files. Three JSON formats are understood and can be mixed in one directory:
+"""Read spans from files. Four JSON formats are understood and can be mixed in one directory:
 
 - the OpenTelemetry Python SDK's own span JSON (what the demo services write directly)
 - OTLP/JSON, one export request per line (what the OpenTelemetry Collector's `file` exporter writes)
 - Zipkin v2 JSON, an array of spans per file (timestamp and duration are microseconds)
+- Jaeger "Trace JSON", one UI export document per file (timestamp and duration are microseconds)
 """
 import glob
 import json
@@ -267,6 +268,58 @@ def _from_zipkin(raw: dict) -> Span:
     )
 
 
+# --- Jaeger "Trace JSON" (one export document) ------------------------------------------------------------------
+
+_JAEGER_KINDS = {"CLIENT", "SERVER", "PRODUCER", "CONSUMER", "INTERNAL"}
+
+
+def _jaeger_tags(span: dict) -> dict:
+    """Jaeger tags are a list of {key, type, value}; make the plain dict the OTLP/SDK paths use."""
+    return {tag["key"]: tag.get("value") for tag in span.get("tags") or []}
+
+
+def _from_jaeger(raw: dict) -> list[Span]:
+    """One Jaeger UI export: {"data": [{"traceID", "spans": [...], "processes": {...}}]}.
+
+    Jaeger has no status message, so error_text stays "" and error comes from tags: error=true or
+    otel.status_code=ERROR. Times are microseconds, unlike OTLP's nanoseconds. Parents come from
+    references (the first CHILD_OF), not a parentSpanId field."""
+    spans = []
+    for trace in raw.get("data") or []:
+        processes = trace.get("processes") or {}
+        for span in trace.get("spans") or []:
+            attributes = _jaeger_tags(span)
+            input_tokens, output_tokens = _tokens(attributes)
+            parent = next(
+                (ref for ref in span.get("references") or [] if ref.get("refType") == "CHILD_OF"), None
+            )
+            kind = str(attributes.get("span.kind") or "INTERNAL").upper()
+            start_ns = int(span["startTime"]) * 1000
+            spans.append(
+                Span(
+                    trace_id=_with_hex_prefix(str(span["traceID"])),
+                    span_id=_with_hex_prefix(str(span["spanID"])),
+                    parent_id=_with_hex_prefix(str(parent["spanID"])) if parent else None,
+                    service=(processes.get(span.get("processID")) or {}).get("serviceName", "unknown"),
+                    name=span["operationName"],
+                    kind=kind if kind in _JAEGER_KINDS else "INTERNAL",
+                    start_ns=start_ns,
+                    end_ns=start_ns + int(span["duration"]) * 1000,
+                    error=attributes.get("error") is True
+                    or str(attributes.get("otel.status_code", "")).upper() == "ERROR",
+                    queue_ns=_queue_ns(attributes),
+                    error_text="",
+                    http_status=_http_status(attributes),
+                    method=_method(attributes),
+                    target=_target(attributes),
+                    resend_count=_resend_count(attributes),
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
+            )
+    return spans
+
+
 # --- loading ---------------------------------------------------------------------------------------------------
 
 class TraceFormatError(ValueError):
@@ -286,7 +339,7 @@ def _spans_from(item, source: str) -> list[Span]:
     if isinstance(item, dict) and "id" in item and "traceId" in item:
         return [_from_zipkin(item)]  # a Zipkin v2 span, on its own or one element of a file's array
     if isinstance(item, dict) and "data" in item and any(isinstance(d, dict) and "traceID" in d for d in item.get("data") or []):
-        raise TraceFormatError(f"{source}: this looks like a Jaeger JSON export, which is not supported yet. Use OTLP/JSON.")
+        return _from_jaeger(item)
     raise TraceFormatError(f"{source}: this is not an OpenTelemetry span, an OTLP/JSON export request, or a Zipkin v2 span")
 
 
