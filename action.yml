@@ -6,7 +6,7 @@ description: >-
 inputs:
   path:
     description: >-
-      Trace file or directory to gate on (SDK JSON lines, OTLP/JSON, or Zipkin v2).
+      Trace file or directory to gate on (SDK JSON lines, OTLP/JSON, Zipkin v2, or Jaeger Trace JSON).
     required: true
   min-goodput:
     description: "Exit 1 when goodput is below this share (0..1)."

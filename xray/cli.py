@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     report = sub.add_parser("report", help="per-edge amplification, goodput and zombie work")
-    report.add_argument("path", help="a span file, or a directory of them (SDK JSON lines, OTLP/JSON, or Zipkin v2)")
+    report.add_argument("path", help="a span file, or a directory of them (SDK JSON lines, OTLP/JSON, Zipkin v2, or Jaeger Trace JSON)")
     report.add_argument("--jev", action="store_true", help=JEV_HELP)
     report.add_argument("--input-token-price", type=float, metavar="USD_PER_M",
                         help="USD per million input tokens: adds a dollar estimate for the tokens wasted")
