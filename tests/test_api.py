@@ -103,6 +103,23 @@ def test_a_pretty_printed_document_and_a_json_array_are_understood(client):
     assert upload(client, [("array.json", array)]).status_code == 200
 
 
+def test_a_jaeger_export_is_recognized_and_analyzed(client):
+    trace = "078f4a15714fecfef7b2146e0b9f5f32"
+    jaeger = json.dumps({"data": [{"traceID": trace, "spans": [
+        {"traceID": trace, "spanID": "449d99ea22da8017", "operationName": "GET", "references": [],
+         "startTime": 1790000000000000, "duration": 1000000, "processID": "p1",
+         "tags": [{"key": "span.kind", "type": "string", "value": "client"}]},
+        {"traceID": trace, "spanID": "71b56c323da87261", "operationName": "GET /work",
+         "references": [{"refType": "CHILD_OF", "traceID": trace, "spanID": "449d99ea22da8017"}],
+         "startTime": 1790000000100000, "duration": 500000, "processID": "p2",
+         "tags": [{"key": "span.kind", "type": "string", "value": "server"}]},
+    ], "processes": {"p1": {"serviceName": "service-a"}, "p2": {"serviceName": "service-b"}}}]})
+
+    response = upload(client, [("jaeger.json", jaeger)])
+
+    assert response.status_code == 200 and response.json()["summary"]["dependency_calls"] == 1
+
+
 def test_the_sample_endpoint_only_serves_known_names(client):
     assert client.get("/samples/retry-storm").status_code == 200
     assert client.get("/samples/..%2Fapp.py").status_code == 404
@@ -124,14 +141,6 @@ def test_json_that_is_not_a_span_is_refused_politely(client):
     response = upload(client, [("data.json", json.dumps({"hello": "world", "token": "abc-def-ghi-123456"}))])
 
     assert response.status_code == 422 and "abc-def-ghi-123456" not in response.text
-
-
-def test_a_jaeger_export_is_recognised_and_explained(client):
-    jaeger = json.dumps({"data": [{"traceID": "abc", "spans": []}]})
-
-    response = upload(client, [("jaeger.json", jaeger)])
-
-    assert response.status_code == 422 and "Jaeger" in response.json()["detail"]
 
 
 def test_a_wrong_envelope_is_a_400(client):
