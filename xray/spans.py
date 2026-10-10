@@ -340,7 +340,7 @@ def _spans_from(item, source: str) -> list[Span]:
         return [_from_zipkin(item)]  # a Zipkin v2 span, on its own or one element of a file's array
     if isinstance(item, dict) and "data" in item and any(isinstance(d, dict) and "traceID" in d for d in item.get("data") or []):
         return _from_jaeger(item)
-    raise TraceFormatError(f"{source}: this is not an OpenTelemetry span, an OTLP/JSON export request, or a Zipkin v2 span")
+    raise TraceFormatError(f"{source}: this is not an OpenTelemetry span, an OTLP/JSON export request, a Zipkin v2 span, or a Jaeger \"Trace JSON\" export")
 
 
 def parse_text(text: str, source: str = "input", max_spans: int | None = None) -> list[Span]:

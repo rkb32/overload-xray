@@ -194,7 +194,7 @@
         <p class="eyebrow">// bring your own traces</p>
         <h2 id="export-title">Export them with the Collector.</h2>
         <p class="lede">Every service needs OpenTelemetry tracing with context propagation, so a call from one service and the work it causes in the next end up in the same trace. Then write the traces to a file with the OpenTelemetry Collector's <code>file</code> exporter.</p>
-        <p class="lede">Supported: OTLP/JSON (one export request per line, or one document), the OpenTelemetry Python SDK's span JSON, Zipkin v2 JSON (an array of spans), and Jaeger Trace JSON (the file the Jaeger UI's JSON download writes). Optional: if a service queues requests before running them, set the span attribute <code>app.queue_wait_ms</code> on its server span, so waiting is not counted as work.</p>
+        <p class="lede">Supported: OTLP/JSON (one export request per line, or one document), the OpenTelemetry Python SDK's span JSON, Zipkin v2 JSON (an array of spans), and Jaeger Trace JSON (save the page the Jaeger UI's Trace JSON option opens, or fetch it from the query API at <code>/api/traces</code>). Optional: if a service queues requests before running them, set the span attribute <code>app.queue_wait_ms</code> on its server span, so waiting is not counted as work.</p>
       </div>
       <pre><code>exporters:
   file:
