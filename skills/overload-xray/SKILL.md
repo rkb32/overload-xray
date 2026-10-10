@@ -26,7 +26,7 @@ The tools come from an MCP server, launched over stdio. Point it at the folder t
 Paths you pass to the tools are relative to `XRAY_ROOT`. Anything outside it (`..`, an absolute path, a symlink) is refused.
 
 ## Procedure
-1. Locate the traces: OTLP/JSON written by the OpenTelemetry Collector's `file` exporter, the OpenTelemetry Python SDK's span JSON lines, or Zipkin v2 JSON (an array of spans). A folder of files is fine.
+1. Locate the traces: OTLP/JSON written by the OpenTelemetry Collector's `file` exporter, the OpenTelemetry Python SDK's span JSON lines, Zipkin v2 JSON (an array of spans), or a Jaeger "Trace JSON" export from the Jaeger UI. A folder of files is fine.
 2. Call `report`. For each caller -> callee edge read:
    - **per user** = calls per user request (above ~2 with low goodput means a retry storm)
    - **goodput** = share of the callee's work whose result the caller used

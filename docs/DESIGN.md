@@ -31,7 +31,7 @@ flowchart LR
     A -. OTLP .-> C[OpenTelemetry Collector]
     B -. OTLP .-> C
     C --> G[(otlp-traces.json)]
-    F --> L[loader: both formats, de-duplicated]
+    F --> L[loader: all four formats, de-duplicated]
     G --> L
     V[visitor's browser or curl] -->|upload, in memory only| W[web app: /api/analyze, limits, rate limit]
     W --> L
