@@ -50,7 +50,7 @@ What the traces say about the same runs (all steps combined):
 
 The surprise: cancelling at the deadline makes the zombie tail disappear, but users still fail. Under overload the job at the front of the queue has already used most of its time, starts, cannot finish, and gets cancelled midway. Only refusing jobs that cannot finish in the time left rescues the users. The tool shows this too: after the middle fix the zombie tail is 0 but goodput is still 28%, and it flags that as `doomed_work`.
 
-Limits, plainly: synthetic services, one random arrival sequence per rate, no confidence intervals, one laptop. No real application has been measured yet. See [docs/DESIGN.md](docs/DESIGN.md).
+Limits, plainly: synthetic services, one random arrival sequence per rate, no confidence intervals, one laptop. The one real-app measurement so far — the OpenTelemetry demo, one run per condition, synthetic load — is written up in [docs/EVIDENCE.md](docs/EVIDENCE.md). See [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Run the rest
 
@@ -133,7 +133,7 @@ steps:
 - [docs/DESIGN.md](docs/DESIGN.md), [docs/DEPLOY.md](docs/DEPLOY.md), [docs/LAUNCH.md](docs/LAUNCH.md), [docs/FEATURES.md](docs/FEATURES.md) (what to build next, with sources)
 
 ## Status
-Built and tested locally and in Docker: everything above. **Deployed to AWS on 2026-10-03** with Terraform (Lambda behind API Gateway and CloudFront), redesigned page and the retry map shipped 2026-10-04, and checked from outside with `infra/verify_live.py` (20 of 20 pass), but **not announced yet**: the account's Lambda slots are shared with another product and cannot be capped until AWS raises the quota, so the address stays unlisted. Details and numbers in [docs/DEPLOY.md](docs/DEPLOY.md). Not built: Kubernetes, the Go rewrite of the analyzer, GraphQL, and a run on a real open-source microservice app. CI (tests against Postgres 16, plus a Docker build) runs on every push and pull request and is green.
+Built and tested locally and in Docker: everything above. **Deployed to AWS on 2026-10-03** with Terraform (Lambda behind API Gateway and CloudFront), redesigned page and the retry map shipped 2026-10-04, and checked from outside with `infra/verify_live.py` (20 of 20 pass), but **not announced yet**: the account's Lambda slots are shared with another product and cannot be capped until AWS raises the quota, so the address stays unlisted. Details and numbers in [docs/DEPLOY.md](docs/DEPLOY.md). Not built: Kubernetes, the Go rewrite of the analyzer, GraphQL, and any real-app run beyond the single OpenTelemetry demo measurement (one run per condition, synthetic load — [docs/EVIDENCE.md](docs/EVIDENCE.md)). CI (tests against Postgres 16, plus a Docker build) runs on every push and pull request and is green.
 
 ## License
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
