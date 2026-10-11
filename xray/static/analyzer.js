@@ -781,7 +781,7 @@ function spansFrom(item, source) {
   if (isMapping(item) && hasOwn(item, "context") && hasOwn(item, "start_time")) return [fromSdk(item)];
   if (isMapping(item) && hasOwn(item, "id") && hasOwn(item, "traceId")) return [fromZipkin(item)]; // a Zipkin v2 span
   if (isMapping(item) && hasOwn(item, "data") && jaegerData(item.data)) return fromJaeger(item);
-  throw new TraceFormatError(`${source}: this is not an OpenTelemetry span, an OTLP/JSON export request, or a Zipkin v2 span`);
+  throw new TraceFormatError(`${source}: this is not an OpenTelemetry span, an OTLP/JSON export request, a Zipkin v2 span, or a Jaeger "Trace JSON" export`);
 }
 
 // any(isinstance(d, dict) and "traceID" in d for d in item.get("data") or [])
