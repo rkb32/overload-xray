@@ -1,5 +1,7 @@
 # overload-xray
 
+[![CI](https://github.com/rkb32/overload-xray/actions/workflows/ci.yml/badge.svg)](https://github.com/rkb32/overload-xray/actions/workflows/ci.yml)
+
 **Is your backend doing work nobody is waiting for?** Drop in your OpenTelemetry traces and see how much of the work was wasted on retries and on callers that had already given up, and which fix is missing. No install, no account, and your traces are never stored.
 
 ```
