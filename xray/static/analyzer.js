@@ -750,6 +750,7 @@ function fromJaeger(raw) {
       const processId = pyGet(span, "processID");
       const process = typeof processId === "string" && hasOwn(processes, processId) ? processes[processId] : null;
       const status = attributes.has("otel.status_code") ? attributes.get("otel.status_code") : "";
+      const statusDescription = attributes.get("otel.status_description");
       spans.push(newSpan({
         traceId: withHexPrefix(pyStr(req(span, "traceID"))),
         spanId: withHexPrefix(pyStr(req(span, "spanID"))),
@@ -761,7 +762,7 @@ function fromJaeger(raw) {
         endNs: startNs + pyInt(req(span, "duration")) * 1000n,
         error: attributes.get("error") === true || pyStr(status).toUpperCase() === "ERROR",
         queueNs: queueNs(attributes),
-        errorText: "",
+        errorText: pyTruthy(statusDescription) ? statusDescription : "",
         httpStatus: httpStatus(attributes),
         method: methodOf(attributes),
         target: targetOf(attributes),

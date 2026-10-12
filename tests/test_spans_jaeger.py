@@ -83,8 +83,20 @@ def test_the_error_tag_marks_a_span_failed_but_not_the_child(tmp_path):
     client, child = load_spans(write(tmp_path, jaeger_export()))
 
     assert client.error is True  # tags carry error=true as a bool
-    assert client.error_text == ""  # Jaeger has no status message
+    assert client.error_text == ""  # this export carries no otel.status_description tag
     assert child.error is False
+
+
+def test_an_error_span_keeps_the_otel_status_description_as_its_error_text(tmp_path):
+    export = jaeger_export()
+    export["data"][0]["spans"][0]["tags"].append(
+        {"key": "otel.status_description", "type": "string", "value": "ReadTimeout: timed out"}
+    )
+    client, child = load_spans(write(tmp_path, export))
+
+    assert client.error is True
+    assert client.error_text == "ReadTimeout: timed out"  # the status message travels as a tag
+    assert child.error_text == ""
 
 
 def test_a_malformed_span_is_a_format_error_not_a_crash(tmp_path):
