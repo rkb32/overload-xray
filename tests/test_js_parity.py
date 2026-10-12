@@ -199,6 +199,14 @@ def _sdk_variants(text):
     spans[2]["resource"] = {"service.name": "flat"}
     spans[3]["attributes"] = None
     spans[4]["status"] = None
+    # Every form datetime.fromisoformat accepts for the same moment, basic and extended (Python 3.11+ reads them, so
+    # the port must too). One start_time per span, with the end after them all so every duration stays positive.
+    basic_forms = ["20261010", "20261010T120000", "20261010T120000Z", "20261010T1200", "20261010T12",
+                   "2026-10-10T12:00:00Z", "20261010T120000.5Z", "20261010T120000+0530", "20261010T120000+05:30",
+                   "2026-10-10T120000Z", "2026-10-10T1200Z"]
+    for span, form in zip(spans[5:], basic_forms):
+        span["start_time"] = form
+        span["end_time"] = "2026-10-11T00:00:00Z"
     return "\n".join(json.dumps(span) for span in spans)
 
 

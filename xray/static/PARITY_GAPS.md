@@ -16,6 +16,11 @@ version of the port, and what still differs.
 6. `pyInt` returned a double, which loses nanosecond timestamps and token counts above 2^53 (Python ints are exact).
    It now returns a BigInt, and a bare JSON integer above 2^53 is read exactly where the browser allows it.
 7. `req` read inherited properties (`obj["constructor"]`), so a missing key could look present.
+8. Timestamps: only the extended ISO 8601 form was read. The port now reads what `datetime.fromisoformat` (Python 3.11+)
+   reads, with the date, the time and the offset each basic or extended in any mix: `20261010`, `20261010T120000`,
+   `20261010T120000Z`, `20261010T1200`, `20261010T12`, `20261010T120000.5Z`, `20261010T120000+0530`,
+   `20261010T120000+05:30`, `2026-10-10T120000Z` and `2026-10-10T1200Z`, all as `start_time` values in
+   `tests/test_js_parity.py`.
 
 ## Differences that remain
 
@@ -26,8 +31,6 @@ version of the port, and what still differs.
 - **JSON numbers.** Python accepts `NaN` and `Infinity`; `JSON.parse` rejects them. A bare integer above 2^53 is exact
   only where `JSON.parse` gives the reviver `context.source` (Node 22 does; check older browsers before relying on it);
   elsewhere it is read as a double. OTLP writes nanoseconds as strings, so real exports are not affected.
-- **Timestamps.** Only extended ISO 8601 (`2026-10-04T12:00:00.123456Z`, any offset) is read. Python 3.11+ also reads
-  the basic form (`20261004T120000`).
 - **URLs.** `urlsplit` is ported from CPython 3.13. Bracketed IPv6 hosts are checked with a small validator, not
   `ipaddress`. Another Python version can differ on odd URLs, and then the target is `""` on one side only.
 - **Whitespace and unicode.** Lone surrogates and non-ASCII digits in `int()` strings follow JS rules. A leading BOM is
