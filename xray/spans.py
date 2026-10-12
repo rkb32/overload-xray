@@ -281,9 +281,10 @@ def _jaeger_tags(span: dict) -> dict:
 def _from_jaeger(raw: dict) -> list[Span]:
     """One Jaeger UI export: {"data": [{"traceID", "spans": [...], "processes": {...}}]}.
 
-    Jaeger has no status message, so error_text stays "" and error comes from tags: error=true or
-    otel.status_code=ERROR. Times are microseconds, unlike OTLP's nanoseconds. Parents come from
-    references (the first CHILD_OF), not a parentSpanId field."""
+    Error comes from tags: error=true or otel.status_code=ERROR. The status message travels as the
+    otel.status_description tag, the way the OpenTelemetry-to-Jaeger mapping writes it. Times are
+    microseconds, unlike OTLP's nanoseconds. Parents come from references (the first CHILD_OF), not
+    a parentSpanId field."""
     spans = []
     for trace in raw.get("data") or []:
         processes = trace.get("processes") or {}
@@ -308,7 +309,7 @@ def _from_jaeger(raw: dict) -> list[Span]:
                     error=attributes.get("error") is True
                     or str(attributes.get("otel.status_code", "")).upper() == "ERROR",
                     queue_ns=_queue_ns(attributes),
-                    error_text="",
+                    error_text=attributes.get("otel.status_description") or "",
                     http_status=_http_status(attributes),
                     method=_method(attributes),
                     target=_target(attributes),
