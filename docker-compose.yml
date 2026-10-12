@@ -1,13 +1,13 @@
 services:
   db:
-    image: postgres:16
+    image: postgres:18
     environment:
       POSTGRES_PASSWORD: xray  # local development only
       POSTGRES_DB: xray
     ports:
       - "127.0.0.1:15432:5432"  # this machine only (the dev password is public); 15432 never collides with a Postgres you run
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/18/docker
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d xray"]
       interval: 3s
