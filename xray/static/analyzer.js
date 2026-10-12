@@ -361,24 +361,27 @@ function daysFromCivil(y, m, d) {
 const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 const daysInMonth = (y, m) => [31, isLeap(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
 
-const ISO = /^(\d{4})-(\d{2})-(\d{2})(?:[\s\S](\d{2})(?::(\d{2})(?::(\d{2})(?:[.,](\d+))?)?)?(Z|[+-]\d{2}(?::?\d{2}(?::?\d{2}(?:\.\d{1,6})?)?)?)?)?$/;
+// Date, time and offset may each be basic (20261010T120000+0530) or extended (2026-10-10T12:00:00+05:30), in any mix,
+// like datetime.fromisoformat in Python 3.11+.
+const ISO = /^(\d{4})(?:-(\d{2})-(\d{2})|(\d{2})(\d{2}))(?:[\s\S](\d{2})(?::(\d{2})(?::(\d{2})(?:[.,](\d+))?)?|(\d{2})(?:(\d{2})(?:[.,](\d+))?)?)?(Z|[+-]\d{2}(?::?\d{2}(?::?\d{2}(?:\.\d{1,6})?)?)?)?)?$/;
 
 // datetime.fromisoformat(iso) as nanoseconds since the epoch (microsecond resolution, like Python). A time without an
-// offset is taken as UTC, like _iso_to_ns does. Only the extended ISO 8601 form is read (see PARITY_GAPS.md).
+// offset is taken as UTC, like _iso_to_ns does. Basic and extended ISO 8601 forms are read (see PARITY_GAPS.md).
 function isoToNs(iso) {
   if (typeof iso !== "string") throw new PyError("TypeError", "fromisoformat: argument must be str");
   const bad = () => new PyError("ValueError", `Invalid isoformat string: ${pyRepr(iso)}`);
   const match = ISO.exec(iso);
   if (!match) throw bad();
-  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  const hour = match[4] === undefined ? 0 : Number(match[4]);
-  const minute = match[5] === undefined ? 0 : Number(match[5]);
-  const second = match[6] === undefined ? 0 : Number(match[6]);
-  const micros = match[7] === undefined ? 0 : Number(match[7].slice(0, 6).padEnd(6, "0"));
+  const [year, month, day] = [Number(match[1]), Number(match[2] ?? match[4]), Number(match[3] ?? match[5])];
+  const hour = match[6] === undefined ? 0 : Number(match[6]);
+  const minute = Number(match[7] ?? match[10] ?? 0);
+  const second = Number(match[8] ?? match[11] ?? 0);
+  const fraction = match[9] ?? match[12];
+  const micros = fraction === undefined ? 0 : Number(fraction.slice(0, 6).padEnd(6, "0"));
   if (year < 1 || month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) throw bad();
   if (hour > 23 || minute > 59 || second > 59) throw bad();
   let offsetSeconds = 0;
-  const zone = match[8];
+  const zone = match[13];
   if (zone && zone !== "Z") {
     const digits = zone.slice(1).replace(/[:.]/g, "");
     const [oh, om, os] = [Number(digits.slice(0, 2)), Number(digits.slice(2, 4) || 0), Number(digits.slice(4, 6) || 0)];
