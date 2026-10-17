@@ -44,6 +44,7 @@ h3 { font: 500 12px/1.2 var(--mono); letter-spacing: 0.08em; text-transform: upp
 .nav nav a { color: var(--muted); text-decoration: none; font-size: 14px; transition: color 0.15s; }
 .nav nav a:hover { color: var(--ink); }
 .nav .btn { margin-left: auto; }
+.nav .btn + .btn { margin-left: 8px; }
 
 /* ---------- buttons ---------- */
 .btn, .pill {

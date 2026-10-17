@@ -33,7 +33,9 @@ def test_in_page_links_point_at_real_sections():
 
 def test_nothing_is_loaded_from_another_origin():
     # default-src 'none' in the policy means an external font, image or script is blocked without any visible error.
-    for name, text in (("index.html", HTML), ("app.js", JS), ("app.css", CSS)):
+    # A plain <a href> link to the repository loads nothing, so it is the one external address allowed in the page.
+    page_without_links = re.sub(r'<a\b[^>]*\bhref="https?://[^"]*"', "<a", HTML)
+    for name, text in (("index.html", page_without_links), ("app.js", JS), ("app.css", CSS)):
         found = set(re.findall(r"https?://[^\s\"')>]+", text)) - ALLOWED_URLS
         assert not found, f"{name} refers to other origins, which the content-security policy blocks: {sorted(found)}"
     assert "@import" not in CSS and "@font-face" not in CSS
